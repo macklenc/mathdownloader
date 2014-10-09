@@ -55,11 +55,47 @@ class simpleapp_tk(tkinter.Tk):
   def OnButtonClick(self):
     self.button.config(state='disabled')
     self.entry.config(state='disabled')
-    getMath(self.entryText.get())
+    mathThread.getMath(self.entryText.get())
     self.button.config(state='normal')
     self.entry.config(state='normal')
     self.entry.focus_set()
     self.entry.selection_range(0, tkinter.END)
+
+def getCourses():
+	knowncoursenames=[]
+	urlpath="http://www.uccs.edu/math/student-resources/video-course-archive.html"
+	http = urllib3.PoolManager()
+	r1=http.request('GET', urlpath)
+	coursurls=re.findall('http://cmes.uccs.edu/.*/archive.php',r1.data.decode("utf-8"))
+	strip=[x.replace('http://cmes.uccs.edu/','') for x in coursurls]
+	strip=[re.sub('/archive\.php', '', x) for x in strip]
+
+	timetmp=[re.sub('([a-zA-Z])([0-9])',r"\1 \2", x) for x in strip]
+	time=[re.sub('([a-zA-Z])([0-9])',r"\1 \2",x) for x in timetmp]
+
+	coursetmp=[re.sub('^.*/',r"",x) for x in strip]
+	course=[re.sub('([a-zA-Z])([0-9])',r"\1 \2",x) for x in coursetmp]
+
+	item=[(time[x] + " " + course[x]) for x in range(len(coursetmp))]
+	for x in range(len(item)):
+		item[x].split(' ')
+
+	sorted(item, key=lambda item: item[1])
+	sorted(item, key=lambda item: item[0])
+	sorted(item, key=lambda item: item[3])
+
+
+
+	print(item)
+
+def remove_duplicates(values):
+    output = []
+    seen = set()
+    for value in values:
+    	if value not in seen:
+    		output.append(value)
+    		seen.add(value)
+    return output
 
 def getMath(address):
   app.labelFeedBack.set(address)

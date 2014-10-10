@@ -82,7 +82,7 @@ class simpleapp_tk(tkinter.Tk):
   def OnButtonClick(self):
     self.downloadButton.config(state='disabled')
     self.entry.config(state='disabled')
-    getMath(self.entryText.get(), self.file.get())
+    getMath(self.entryText.get(), self.file)
     self.downloadButton.config(state='normal')
     self.entry.config(state='normal')
     self.entry.focus_set()

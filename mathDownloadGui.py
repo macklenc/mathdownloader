@@ -130,28 +130,36 @@ def getCourses():
 	knowncoursenames=[]
 	urlpath="http://www.uccs.edu/math/student-resources/video-course-archive.html"
 	http = urllib3.PoolManager()
-	r1=http.request('GET', urlpath)
-	coursurls=re.findall('http://cmes.uccs.edu/.*/archive.php',r1.data.decode("utf-8"))
-	strip=[x.replace('http://cmes.uccs.edu/','') for x in coursurls]
-	strip=[re.sub('/archive\.php', '', x) for x in strip]
+	r1=http.request('GET', urlpath) # generic data
 
-	timetmp=[re.sub('([a-zA-Z])([0-9])',r"\1 \2", x) for x in strip]
-	time=[re.sub('([a-zA-Z])([0-9])',r"\1 \2",x) for x in timetmp]
+	genericcourse=re.findall('http://cmes.uccs.edu/.*/archive.php.*[<br />]?</span></li>',r1.data.decode("utf-8")) # Yuck
+	names=[re.findall('>(?:\*| |&nbsp;|) ?-(?:&nbsp;| |)[a-zA-Z. ]*(?:&nbsp;| |)<',x)[0] for x in genericcourse] # Extract list of professor names
+	names=[re.sub('(?:>|<|-|\*|&nbsp;)',r"",x) for x in names] # Remove special characters
+	names=[re.sub('(?:^ *| *$)',r"",x) for x in names] # Finally, we have the proffs names
 
-	coursetmp=[re.sub('^.*/',r"",x) for x in strip]
-	course=[re.sub('([a-zA-Z])([0-9])',r"\1 \2",x) for x in coursetmp]
+	# coursurls=re.findall('http://cmes.uccs.edu/.*/archive.php^((?!\"></a>).)',r1.data.decode("utf-8")) # Used to parse course info
+	strip=[x.replace('http://cmes.uccs.edu/','') for x in genericcourse]	# Strip off primary URL
+	strip=[re.sub('/archive\.php.*', '', x) for x in strip] 	# Strip file
+	timetmp=[re.sub('/.*$',r"", x) for x in strip] # Remove the last / and everything after it
+	time=[re.sub('([a-zA-Z])([0-9])',r"\1 \2",x) for x in timetmp]	# Put a space between words and numbers (Semester and year)
+	coursetmp=[re.sub('^.*/',r"",x) for x in strip]	# Remove everythin up to and including the first /
+	course=[re.sub('([a-zA-Z])([0-9])',r"\1 \2",x) for x in coursetmp]	# Put space between words and numbers (Math and course)
+
+	# Test code
+	# print(str(time[x]) + " " + str(course[x]) + " " + str(names[x])) for x in range(len(course))
 
 	item=[(time[x] + " " + course[x]) for x in range(len(coursetmp))]
-	for x in range(len(item)):
-		item[x].split(' ')
+	courselist=list()
+	[courselist.append(list(x.split())) for x in item]
+	[courselist[x].append(names[x]) for x in range(len(names))]
+	itemlist=list()
+	[itemlist.append([x[0],int(float(x[1])),x[2],int(float(x[3])),x[4]]) for x in courselist]
 
-	sorted(item, key=lambda item: item[1])
-	sorted(item, key=lambda item: item[0])
-	sorted(item, key=lambda item: item[3])
+	itemlist=sorted(itemlist, key=lambda itemlist: itemlist[0], reverse=True)
+	itemlist=sorted(itemlist, key=lambda itemlist: itemlist[1])
+	itemlist=sorted(itemlist, key=lambda itemlist: itemlist[3])
 
-
-
-	print(item)
+	return itemlist
 
 def remove_duplicates(values):
     output = []

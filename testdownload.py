@@ -8,14 +8,21 @@ import pdb
 
 debugStatus = True
 
+class ResumeError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
 # Interface:
 # startDownload(url,deleteFile) -> url is self explanitory, set deleteFile to true to delete any existing
 # files with equivalent names, since the downloader appends to the file, you always want to do this on a 
 # fresh start.
 # PauseDownload()
 # resumeDownload()
-# getFilename() -- not implimented
-# getProgress() -> This has lots of data: current amount downloaded, total required, percentage complete
+# getFilename()
+# raw2human(value) -> This will take a download value and make it easily readible, i.e. KB, MB, GB.
+# getProgress() -> This has lots of data, returned in order: current amount downloaded, total required, percentage complete
 # approxamate download rate and estimated completion time. -- not implimented
 
 # Note: To recover a download after a possible app crash, run loadStatus() followed by resumeDownload().
@@ -34,6 +41,25 @@ class FileDownloader(object):
         self.block_sz = 8192
         self.isPaused = threading.Event()
         self.lock = threading.Lock()
+        self.start = 0
+        self.velocity = list()
+        self.elapsedNumber = 0
+        self.averageVelocity = 0
+
+    def getFilename(self):
+        return fileName
+
+    def downloadRate(self):
+        if self.elapsedNumber < 10:
+            self.velocity.append(time.time()-self.start)
+            self.elapsedNumber = self.elapsedNumber + 1
+        else:
+            self.velocity[self.elapsedNumber%10]=(time.time()-self.start)
+        self.start = time.time()
+        self.averageVelocity = sum(self.velocity)/len(self.velocity)
+
+    # def getProgress(self):
+
 
     def raw2human(self, value):
         if (value/1000000000) > 1: # Define in GB
@@ -51,7 +77,8 @@ class FileDownloader(object):
             i = 0
             while i < 10 and header is None:
                 header = self.u.getheader("Content-Length")
-                self.fileSize = int(header)
+                if header is not None:
+                    self.fileSize = int(header)
                 i = i + 1
                 if debugStatus and header is not None:
                     print("Retrieved Content-Length after %d attempts." % i)
@@ -115,6 +142,7 @@ class FileDownloader(object):
         if start is not None:
             self.szDownloaded = start
         
+        self.start = time.time()
         while True:
             buffer = self.u.read(self.block_sz)
             if not buffer:
@@ -130,8 +158,11 @@ class FileDownloader(object):
             for x in range(stringLength+4):
                 clearString+=" "
             print(clearString,end='\r')
+            print('Current rate: ' + str(self.raw2human(self.averageVelocity)))
             print(self.raw2human(self.szDownloaded),end='\r')
 
+            self.saveStatus()
+            self.downloadRate()
             with self.lock:
                 if self.isPaused.isSet() is True:
                     print('Exiting download thread.')
@@ -141,32 +172,37 @@ class FileDownloader(object):
         return
 
     def saveStatus(self):
-        if debugStatus:
-            print('Saving download status...')
-        f = open("downlaod.status", "w")
+        # if debugStatus:
+        #     print('Saving download status...')
+        f = open("download.status", "w")
         f.write("%s %d" % (str(self.url), int(self.szDownloaded)))
         f.close()
-        if debugStatus:
-            print('SUCCESS.')
+        # if debugStatus:
+        #     print('SUCCESS.')
 
     def loadStatus(self):
         if debugStatus:
             print('Loading download status...')
-        f = open("downlaod.status", "r")
-        status = f.read()
-        statusList = status.split()
-        self.urlLog = str(statusList[0])
-        self.szDownloadedLog = int(statusList[1])
-        f.close()
-        if debugStatus:
-            print('SUCCESS.')
+        try:
+            f = open("download.status", "r")
+            status = f.read()
+            statusList = status.split()
+            self.urlLog = str(statusList[0])
+            self.szDownloadedLog = int(statusList[1])
+            f.close()
+            if debugStatus:
+                print('SUCCESS.')
+        except:
+            self.urlLog = None
+            self.szDownloadedLog = None
 
     def pauseDownload(self):
         if debugStatus:
             print('Pausing download...')
+        self.status = 2
         with self.lock:
             self.isPaused.set()
-        self.saveStatus()
+        # self.saveStatus()
         #save a file with the download status, then I'll be able to resume it
 
     def resumeDownload(self):
@@ -175,17 +211,21 @@ class FileDownloader(object):
         with self.lock:
             self.isPaused.clear()
         self.loadStatus()
-        self.startDownload(self.urlLog, False, self.szDownloadedLog)
+        if self.urlLog is not None and self.szDownloadedLog is not None:
+            self.startDownload(self.urlLog, False, self.szDownloadedLog)
+        else:
+            self.status = 3
+            raise ResumeError('Cannot resume download, no download status available.')
 
 f = FileDownloader()
 
 f.startDownload("https://github.com/aron-bordin/Tyrant-Sql/archive/master.zip", True)
+# f.resumeDownload()
 
 
-time.sleep (5);
 
-f.pauseDownload()
-
-time.sleep (5);
-
-f.resumeDownload()
+if f.status is not 3:
+    time.sleep (5);
+    f.pauseDownload()
+    time.sleep (5);
+    f.resumeDownload()
